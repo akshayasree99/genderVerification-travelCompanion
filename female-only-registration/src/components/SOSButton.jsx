@@ -1,62 +1,85 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { getDistance } from '../utils/Distance';
-import LocationUpdater from './LocationUpdater'; // ✅ Import LocationUpdater
+import LocationUpdater from './LocationUpdater';
 
 export default function SOSButton({ userId }) {
   const [closestUser, setClosestUser] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [closestUserDetails, setClosestUserDetails] = useState(null);
 
   const handleSearch = async () => {
     setLoading(true);
     setClosestUser(null);
+    setClosestUserDetails(null);
 
-    const { data: currentUser, error: senderError } = await supabase
-      .from('locations')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    try {
+      // Get current user's location
+      const { data: currentUser, error: senderError } = await supabase
+        .from('locations')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-    if (senderError || !currentUser) {
-      alert('Your location not found');
-      setLoading(false);
-      return;
-    }
-
-    const { data: others, error: othersError } = await supabase
-      .from('locations')
-      .select('*')
-      .neq('user_id', userId);
-
-    if (othersError || others.length === 0) {
-      alert('No other users available');
-      setLoading(false);
-      return;
-    }
-
-    let closest = null;
-    let minDistance = Infinity;
-
-    for (let user of others) {
-      const distance = getDistance(
-        currentUser.latitude,
-        currentUser.longitude,
-        user.latitude,
-        user.longitude
-      );
-      if (distance < minDistance) {
-        minDistance = distance;
-        closest = user;
+      if (senderError || !currentUser) {
+        throw new Error('Your location not found');
       }
-    }
 
-    setClosestUser(closest?.name || closest?.user_id || 'Unknown');
-    setLoading(false);
+      // Get other users' locations
+      const { data: others, error: othersError } = await supabase
+        .from('locations')
+        .select('user_id, latitude, longitude')
+        .neq('user_id', userId);
+
+      if (othersError || others.length === 0) {
+        throw new Error('No other users available');
+      }
+
+      // Find closest user
+      let closest = null;
+      let minDistance = Infinity;
+
+      for (let user of others) {
+        const distance = getDistance(
+          currentUser.latitude,
+          currentUser.longitude,
+          user.latitude,
+          user.longitude
+        );
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          closest = user;
+        }
+      }
+
+      // Fetch closest user's profile details
+      if (closest) {
+        const { data: userProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', closest.user_id)
+          .single();
+
+        if (profileError) {
+          throw new Error('Could not fetch user profile');
+        }
+
+        setClosestUserDetails({
+          ...userProfile,
+          distance: minDistance.toFixed(2) // Round to 2 decimal places
+        });
+        setClosestUser(userProfile.full_name || closest.user_id);
+      }
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* ✅ Add the location updater */}
       <LocationUpdater userId={userId} />
 
       <button
@@ -69,11 +92,15 @@ export default function SOSButton({ userId }) {
         {loading ? 'Searching...' : 'Find Closest Person'}
       </button>
 
-      {closestUser && (
+      {closestUserDetails && (
         <div className="text-lg text-green-700 font-semibold">
-          Closest user: {closestUser}
+          <p>Closest user: {closestUserDetails.full_name}</p>
+          <p>Distance: {closestUserDetails.distance} km</p>
+          <p>Contact: {closestUserDetails.email}</p>
         </div>
       )}
     </div>
   );
 }
+
+//export default SOSButton;

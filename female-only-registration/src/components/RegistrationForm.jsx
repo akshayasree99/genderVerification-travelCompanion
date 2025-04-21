@@ -1,25 +1,45 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
+import { useNavigate } from 'react-router-dom';
 
 export default function Registration() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    confirmPassword: '',
     fullName: ''
   });
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    // Clear any previous errors
+    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+    setError('');
+
+    // Basic validation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
+
     try {
       // 1. Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -41,9 +61,10 @@ export default function Registration() {
 
       if (profileError) throw profileError;
 
-      alert('Registration successful! Please check your email for verification.');
+      // Redirect to login or home page
+      navigate('/');
     } catch (error) {
-      alert('Error during registration: ' + error.message);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -52,6 +73,12 @@ export default function Registration() {
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-6 text-center">Create Account</h2>
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          {error}
+        </div>
+      )}
       
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
@@ -84,7 +111,7 @@ export default function Registration() {
           />
         </div>
         
-        <div className="mb-6">
+        <div className="mb-4">
           <label className="block text-gray-700 mb-2" htmlFor="password">
             Password
           </label>
@@ -93,6 +120,22 @@ export default function Registration() {
             id="password"
             name="password"
             value={formData.password}
+            onChange={handleChange}
+            required
+            minLength="6"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        
+        <div className="mb-6">
+          <label className="block text-gray-700 mb-2" htmlFor="confirmPassword">
+            Confirm Password
+          </label>
+          <input
+            type="password"
+            id="confirmPassword"
+            name="confirmPassword"
+            value={formData.confirmPassword}
             onChange={handleChange}
             required
             minLength="6"
