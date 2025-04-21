@@ -1,98 +1,115 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase'; // make sure you import your Supabase client
+import { useState } from 'react';
+import { supabase } from '../services/supabase';
 
-export default function RegistrationForm() {
+export default function Registration() {
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    full_name: ''
+    fullName: ''
   });
 
-  const [message, setMessage] = useState('');
-
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage('');
-
-    const { email, password } = formData;
-
+    setLoading(true);
+    
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password
+      // 1. Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password
       });
 
-      if (signUpError) throw signUpError;
+      if (authError) throw authError;
 
-      setMessage('Check your email to confirm your registration, then log in.');
+      // 2. Create profile record linked to auth user
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id, // Use the same ID as auth.users.id
+          email: formData.email,
+          full_name: formData.fullName,
+          created_at: new Date()
+        });
+
+      if (profileError) throw profileError;
+
+      alert('Registration successful! Please check your email for verification.');
     } catch (error) {
-      console.error('Registration error:', error.message);
-      setMessage(`Registration failed: ${error.message}`);
+      alert('Error during registration: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 🔁 Listen for login event to create profile
-  useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN') {
-          const user = session.user;
-          const { error: profileError } = await supabase.from('profiles').insert([
-            {
-              id: user.id,
-              email: user.email,
-              full_name: formData.full_name
-            }
-          ]);
-
-          if (profileError) {
-            console.error('Profile insert error:', profileError.message);
-            setMessage(`Profile creation failed: ${profileError.message}`);
-          } else {
-            setMessage('Registration and profile creation successful!');
-          }
-        }
-      }
-    );
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, [formData.full_name]);
-
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Register</h2>
-      <input
-        type="email"
-        name="email"
-        placeholder="Email"
-        value={formData.email}
-        onChange={handleChange}
-        required
-      />
-      <input
-        type="password"
-        name="password"
-        placeholder="Password"
-        value={formData.password}
-        onChange={handleChange}
-        required
-      />
-      <input
-        type="text"
-        name="full_name"
-        placeholder="Full Name"
-        value={formData.full_name}
-        onChange={handleChange}
-        required
-      />
-      <button type="submit">Register</button>
-      {message && <p>{message}</p>}
-    </form>
+    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-6 text-center">Create Account</h2>
+      
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2" htmlFor="fullName">
+            Full Name
+          </label>
+          <input
+            type="text"
+            id="fullName"
+            name="fullName"
+            value={formData.fullName}
+            onChange={handleChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2" htmlFor="email">
+            Email Address
+          </label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        
+        <div className="mb-6">
+          <label className="block text-gray-700 mb-2" htmlFor="password">
+            Password
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            required
+            minLength="6"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        
+        <button
+          type="submit"
+          disabled={loading}
+          className={`w-full bg-blue-600 text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700 transition duration-200 ${
+            loading ? 'opacity-70 cursor-not-allowed' : ''
+          }`}
+        >
+          {loading ? 'Creating Account...' : 'Sign Up'}
+        </button>
+      </form>
+    </div>
   );
 }

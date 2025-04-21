@@ -7,7 +7,7 @@ import SOSButton from './components/SOSButton';
 // import ChatWindow if needed
 
 // Replace with actual user ID from auth or context
-const userId = 'user_123'; // Mocking user ID for now
+const userId = 'b123536f-5102-46ae-a8f3-9cdb1d12e294'; // Mocking user ID for now
 
 function App() {
   return (
